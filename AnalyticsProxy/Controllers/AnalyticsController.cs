@@ -67,6 +67,7 @@ namespace AnalyticsProxy.Controllers
             new LogEvent(string.Format("account: {0},referrer: {1},path: {2},domain: {3}", account, referer, path,
                                        domain)).Raise();
 
+            TrackPageView(account, referer, path, domain);
             //write a 1x1 gif with the correct headers
             Response.AddHeader(
                                 "Cache-Control",
@@ -78,179 +79,175 @@ namespace AnalyticsProxy.Controllers
 
 
 
-          // Tracker version.
-  private const string Version = "4.4sa";
+                // Tracker version.
+        private const string Version = "4.4sa";
 
-  private const string CookieName = "__utmmobile";
+        private const string CookieName = "__utmmobile";
 
-  // The path the cookie will be available to, edit this to use a different
-  // cookie path.
-  private const string CookiePath = "/";
+        // The path the cookie will be available to, edit this to use a different
+        // cookie path.
+        private const string CookiePath = "/";
 
-  // Two years in seconds.
-  private readonly TimeSpan CookieUserPersistence = TimeSpan.FromSeconds(63072000);
+        // Two years in seconds.
+        private readonly TimeSpan CookieUserPersistence = TimeSpan.FromSeconds(63072000);
 
-  private static readonly Regex IpAddressMatcher =
-      new Regex(@"^([^.]+\.[^.]+\.[^.]+\.).*");
+        private static readonly Regex IpAddressMatcher =
+            new Regex(@"^([^.]+\.[^.]+\.[^.]+\.).*");
 
-  // A string is empty in our terms, if it is null, empty or a dash.
-  private static bool IsEmpty(string input) {
-    return input == null || "-" == input || "" == input;
-  }
+        // A string is empty in our terms, if it is null, empty or a dash.
+        private static bool IsEmpty(string input) {
+        return input == null || "-" == input || "" == input;
+        }
 
-  // The last octect of the IP address is removed to anonymize the user.
-  private static string GetIP(string remoteAddress) {
-    if (IsEmpty(remoteAddress)) {
-      return "";
-    }
-    // Capture the first three octects of the IP address and replace the forth
-    // with 0, e.g. 124.455.3.123 becomes 124.455.3.0
-    Match m = IpAddressMatcher.Match(remoteAddress);
-    if (m.Success) {
-      return m.Groups[1] + "0";
-    } else {
-      return "";
-    }
-  }
+        // The last octect of the IP address is removed to anonymize the user.
+        private static string GetIP(string remoteAddress)
+        {
+            if (IsEmpty(remoteAddress))
+            {
+                return "";
+            }
+            // Capture the first three octects of the IP address and replace the forth
+            // with 0, e.g. 124.455.3.123 becomes 124.455.3.0
+            Match m = IpAddressMatcher.Match(remoteAddress);
+            if (m.Success)
+            {
+                return m.Groups[1] + "0";
+            }
+            else
+            {
+                return "";
+            }
+        }
 
-  // Generate a visitor id for this hit.
-  // If there is a visitor id in the cookie, use that, otherwise
-  // use the guid if we have one, otherwise use a random number.
-  private static string GetVisitorId(
-      string guid, string account, string userAgent, HttpCookie cookie) {
+        // Generate a visitor id for this hit.
+        // If there is a visitor id in the cookie, use that, otherwise
+        // use the guid if we have one, otherwise use a random number.
+        private static string GetVisitorId(
+            string guid, string account, string userAgent, HttpCookie cookie) {
 
-    // If there is a value in the cookie, don't change it.
-    if (cookie != null && cookie.Value != null) {
-      return cookie.Value;
-    }
+        // If there is a value in the cookie, don't change it.
+        if (cookie != null && cookie.Value != null) {
+            return cookie.Value;
+        }
 
-    String message;
-    if (!IsEmpty(guid)) {
-      // Create the visitor id using the guid.
-      message = guid + account;
-    } else {
-      // otherwise this is a new user, create a new random id.
-      message = userAgent + GetRandomNumber() + Guid.NewGuid().ToString();
-    }
+        String message;
+        if (!IsEmpty(guid)) {
+            // Create the visitor id using the guid.
+            message = guid + account;
+        } else {
+            // otherwise this is a new user, create a new random id.
+            message = userAgent + GetRandomNumber() + Guid.NewGuid().ToString();
+        }
 
-    MD5CryptoServiceProvider md5 = new MD5CryptoServiceProvider();
-    byte[] messageBytes = Encoding.UTF8.GetBytes(message);
-    byte[] sum = md5.ComputeHash(messageBytes);
+        MD5CryptoServiceProvider md5 = new MD5CryptoServiceProvider();
+        byte[] messageBytes = Encoding.UTF8.GetBytes(message);
+        byte[] sum = md5.ComputeHash(messageBytes);
 
-    string md5String = BitConverter.ToString(sum);
-    md5String = md5String.Replace("-","");
+        string md5String = BitConverter.ToString(sum);
+        md5String = md5String.Replace("-","");
 
-    md5String = md5String.PadLeft(32, '0');
+        md5String = md5String.PadLeft(32, '0');
 
-    return "0x" + md5String.Substring(0, 16);
-  }
+        return "0x" + md5String.Substring(0, 16);
+        }
 
-  // Get a random number string.
-  private static String GetRandomNumber() {
-    Random RandomClass = new Random();
-    return RandomClass.Next(0x7fffffff).ToString();
-  }
+        // Get a random number string.
+        private static String GetRandomNumber() {
+        Random RandomClass = new Random();
+        return RandomClass.Next(0x7fffffff).ToString();
+        }
 
+        // Make a tracking request to Google Analytics from this server.
+        // Copies the headers from the original request to the new one.
+        // If request containg utmdebug parameter, exceptions encountered
+        // communicating with Google Analytics are thown.
+        private void SendRequestToGoogleAnalytics(string utmUrl)
+        {
+            try
+            {
+                WebRequest connection = WebRequest.Create(utmUrl);
 
-  // Make a tracking request to Google Analytics from this server.
-  // Copies the headers from the original request to the new one.
-  // If request containg utmdebug parameter, exceptions encountered
-  // communicating with Google Analytics are thown.
-  private void SendRequestToGoogleAnalytics(string utmUrl) {
-    try {
-      WebRequest connection = WebRequest.Create(utmUrl);
+                ((HttpWebRequest)connection).UserAgent = Request.UserAgent;
+                connection.Headers.Add("Accept-Language",
+                    Request.Headers.Get("Accept-Language"));
 
-      ((HttpWebRequest)connection).UserAgent = Request.UserAgent;
-      connection.Headers.Add("Accept-Language",
-          Request.Headers.Get("Accept-Language"));
+                using (WebResponse resp = connection.GetResponse())
+                {
+                    // Ignore response
+                }
+            }
+            catch (Exception ex)
+            {
+                if (Request.QueryString.Get("utmdebug") != null)
+                {
+                    throw new Exception("Error contacting Google Analytics", ex);
+                }
+            }
+        }
+ 
 
-      using (WebResponse resp = connection.GetResponse()) {
-        // Ignore response
-      }
-    } catch (Exception ex) {
-      if (Request.QueryString.Get("utmdebug") != null) {
-        throw new Exception("Error contacting Google Analytics", ex);
-      }
-    }
-  }
+        // Track a page view, updates all the cookies and campaign tracker,
+        // makes a server side request to Google Analytics and writes the transparent
+        // gif byte data to the response.
+        private void TrackPageView(string account, string referer, string path, string domain)
+        {
+            TimeSpan timeSpan = (DateTime.Now - new DateTime(1970, 1, 1).ToLocalTime());
+            string timeStamp = timeSpan.TotalSeconds.ToString();
 
-  // Track a page view, updates all the cookies and campaign tracker,
-  // makes a server side request to Google Analytics and writes the transparent
-  // gif byte data to the response.
-  private void TrackPageView() {
-    TimeSpan timeSpan = (DateTime.Now - new DateTime(1970, 1, 1).ToLocalTime());
-    string timeStamp = timeSpan.TotalSeconds.ToString();
-    string domainName = Request.ServerVariables["SERVER_NAME"];
-    if (IsEmpty(domainName)) {
-      domainName = "";
-    }
+            string userAgent = Request.UserAgent;
+            if (IsEmpty(userAgent))
+            {
+                userAgent = "";
+            }
 
-    // Get the referrer from the utmr parameter, this is the referrer to the
-    // page that contains the tracking pixel, not the referrer for tracking
-    // pixel.
-    string documentReferer = Request.QueryString.Get("utmr");
-    if (IsEmpty(documentReferer)) {
-      documentReferer = "-";
-    } else {
-      documentReferer = HttpUtility.UrlDecode(documentReferer);
-    }
-    string documentPath = Request.QueryString.Get("utmp");
-    if (IsEmpty(documentPath)) {
-      documentPath = "";
-    } else {
-      documentPath = HttpUtility.UrlDecode(documentPath);
-    }
+            // Try and get visitor cookie from the request.
+            HttpCookie cookie = Request.Cookies.Get(CookieName);
 
-    string account = Request.QueryString.Get("utmac");
-    string userAgent = Request.UserAgent;
-    if (IsEmpty(userAgent)) {
-      userAgent = "";
-    }
+            string guidHeader = Request.Headers.Get("X-DCMGUID");
+            if (IsEmpty(guidHeader))
+            {
+                guidHeader = Request.Headers.Get("X-UP-SUBNO");
+            }
+            if (IsEmpty(guidHeader))
+            {
+                guidHeader = Request.Headers.Get("X-JPHONE-UID");
+            }
+            if (IsEmpty(guidHeader))
+            {
+                guidHeader = Request.Headers.Get("X-EM-UID");
+            }
 
-    // Try and get visitor cookie from the request.
-    HttpCookie cookie = Request.Cookies.Get(CookieName);
+            string visitorId = GetVisitorId(guidHeader, account, userAgent, cookie);
 
-    string guidHeader = Request.Headers.Get("X-DCMGUID");
-    if (IsEmpty(guidHeader)) {
-      guidHeader = Request.Headers.Get("X-UP-SUBNO");
-    }
-    if (IsEmpty(guidHeader)) {
-      guidHeader = Request.Headers.Get("X-JPHONE-UID");
-    }
-    if (IsEmpty(guidHeader)) {
-      guidHeader = Request.Headers.Get("X-EM-UID");
-    }
+            // Always try and add the cookie to the response.
+            HttpCookie newCookie = new HttpCookie(CookieName);
+            newCookie.Value = visitorId;
+            newCookie.Expires = DateTime.Now + CookieUserPersistence;
+            newCookie.Path = CookiePath;
+            Response.Cookies.Add(newCookie);
 
-    string visitorId = GetVisitorId(guidHeader, account, userAgent, cookie);
+            string utmGifLocation = "http://www.google-analytics.com/__utm.gif";
 
-    // Always try and add the cookie to the response.
-    HttpCookie newCookie = new HttpCookie(CookieName);
-    newCookie.Value = visitorId;
-    newCookie.Expires = DateTime.Now + CookieUserPersistence;
-    newCookie.Path = CookiePath;
-    Response.Cookies.Add(newCookie);
+            // Construct the gif hit url.
+            string utmUrl = utmGifLocation + "?" +
+                            "utmwv=" + Version +
+                            "&utmn=" + GetRandomNumber() +
+                            "&utmhn=" + HttpUtility.UrlEncode(domain) +
+                            "&utmr=" + HttpUtility.UrlEncode(referer) +
+                            "&utmp=" + HttpUtility.UrlEncode(path) +
+                            "&utmac=" + account +
+                            "&utmcc=__utma%3D999.999.999.999.999.1%3B" +
+                            "&utmvid=" + visitorId +
+                            "&utmip=" + GetIP(Request.ServerVariables["REMOTE_ADDR"]);
 
-    string utmGifLocation = "http://www.google-analytics.com/__utm.gif";
+            SendRequestToGoogleAnalytics(utmUrl);
 
-    // Construct the gif hit url.
-    string utmUrl = utmGifLocation + "?" +
-        "utmwv=" + Version +
-        "&utmn=" + GetRandomNumber() +
-        "&utmhn=" + HttpUtility.UrlEncode(domainName) +
-        "&utmr=" + HttpUtility.UrlEncode(documentReferer) +
-        "&utmp=" + HttpUtility.UrlEncode(documentPath) +
-        "&utmac=" + account +
-        "&utmcc=__utma%3D999.999.999.999.999.1%3B" +
-        "&utmvid=" + visitorId +
-        "&utmip=" + GetIP(Request.ServerVariables["REMOTE_ADDR"]);
-
-    SendRequestToGoogleAnalytics(utmUrl);
-
-    // If the debug parameter is on, add a header to the response that contains
-    // the url that was used to contact Google Analytics.
-    if (Request.QueryString.Get("utmdebug") != null) {
-      Response.AddHeader("X-GA-MOBILE-URL", utmUrl);
-    }
-  }
+            // If the debug parameter is on, add a header to the response that contains
+            // the url that was used to contact Google Analytics.
+            if (Request.QueryString.Get("utmdebug") != null)
+            {
+                Response.AddHeader("X-GA-MOBILE-URL", utmUrl);
+            }
+        }
     }
 }
