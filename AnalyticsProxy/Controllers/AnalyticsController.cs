@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Web;
+using System.Web.Management;
 using System.Web.Mvc;
 
 namespace AnalyticsProxy.Controllers
@@ -13,6 +14,14 @@ namespace AnalyticsProxy.Controllers
 
     //github markdown
     //![GAProxy analytics](http://localhost:57290/UA-40151795-1/woftam1/woftam2)
+
+    public class LogEvent : WebRequestErrorEvent
+    {
+        public LogEvent(string message)
+            : base(null, null, 100001, new Exception(message))
+        {
+        }
+    }
 
     public class AnalyticsController : Controller
     {
@@ -45,7 +54,10 @@ namespace AnalyticsProxy.Controllers
             //domain name -> ""
             var domain = "";
 
-            return new ContentResult() { Content = string.Format("account: {0},referrer: {1},path: {2},domain: {3}", account, referer, path, domain)};
+            new LogEvent(string.Format("account: {0},referrer: {1},path: {2},domain: {3}", account, referer, path,
+                                       domain)).Raise();
+
+            return new ContentResult() { };
         }
 
           // Tracker version.
