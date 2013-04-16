@@ -251,8 +251,6 @@ namespace AnalyticsProxy.Controllers
     if (Request.QueryString.Get("utmdebug") != null) {
       Response.AddHeader("X-GA-MOBILE-URL", utmUrl);
     }
-    // Finally write the gif data to the response.
-    WriteGifData();
   }
     }
 }
