@@ -33,6 +33,16 @@ namespace AnalyticsProxy.Controllers
             return View();
         }
 
+        // 1x1 transparent GIF
+        private readonly byte[] GifData = {
+              0x47, 0x49, 0x46, 0x38, 0x39, 0x61,
+              0x01, 0x00, 0x01, 0x00, 0x80, 0xff,
+              0x00, 0xff, 0xff, 0xff, 0x00, 0x00,
+              0x00, 0x2c, 0x00, 0x00, 0x00, 0x00,
+              0x01, 0x00, 0x01, 0x00, 0x00, 0x02,
+              0x02, 0x44, 0x01, 0x00, 0x3b
+        };
+
         public ActionResult Track(string account, string path)
         {
             //required info
@@ -57,8 +67,16 @@ namespace AnalyticsProxy.Controllers
             new LogEvent(string.Format("account: {0},referrer: {1},path: {2},domain: {3}", account, referer, path,
                                        domain)).Raise();
 
-            return new ContentResult() { };
+            //write a 1x1 gif with the correct headers
+            Response.AddHeader(
+                                "Cache-Control",
+                                "private, no-cache, no-cache=Set-Cookie, proxy-revalidate");
+            Response.AddHeader("Pragma", "no-cache");
+            Response.AddHeader("Expires", "Wed, 17 Sep 1975 21:32:10 GMT");
+            return new FileContentResult(GifData, "image/gif");
         }
+
+
 
           // Tracker version.
   private const string Version = "4.4sa";
@@ -71,16 +89,6 @@ namespace AnalyticsProxy.Controllers
 
   // Two years in seconds.
   private readonly TimeSpan CookieUserPersistence = TimeSpan.FromSeconds(63072000);
-
-  // 1x1 transparent GIF
-  private readonly byte[] GifData = {
-      0x47, 0x49, 0x46, 0x38, 0x39, 0x61,
-      0x01, 0x00, 0x01, 0x00, 0x80, 0xff,
-      0x00, 0xff, 0xff, 0xff, 0x00, 0x00,
-      0x00, 0x2c, 0x00, 0x00, 0x00, 0x00,
-      0x01, 0x00, 0x01, 0x00, 0x00, 0x02,
-      0x02, 0x44, 0x01, 0x00, 0x3b
-  };
 
   private static readonly Regex IpAddressMatcher =
       new Regex(@"^([^.]+\.[^.]+\.[^.]+\.).*");
@@ -143,16 +151,6 @@ namespace AnalyticsProxy.Controllers
     return RandomClass.Next(0x7fffffff).ToString();
   }
 
-  // Writes the bytes of a 1x1 transparent gif into the response.
-  private void WriteGifData() {
-    Response.AddHeader(
-        "Cache-Control",
-        "private, no-cache, no-cache=Set-Cookie, proxy-revalidate");
-    Response.AddHeader("Pragma", "no-cache");
-    Response.AddHeader("Expires", "Wed, 17 Sep 1975 21:32:10 GMT");
-    Response.Buffer = false;
-    Response.OutputStream.Write(GifData, 0, GifData.Length);
-  }
 
   // Make a tracking request to Google Analytics from this server.
   // Copies the headers from the original request to the new one.
