@@ -48,8 +48,8 @@ namespace AnalyticsProxy.Controllers
             //required info
             //account - with MO rather than UA
             account = account.ToUpper();
-            //if (account.StartsWith("UA"))
-            //    account = "MO" + account.Substring(2);
+            if (account.StartsWith("UA"))
+                account = "MO" + account.Substring(2);
 
             //document referrer - probably github?
             var referer = "-";
